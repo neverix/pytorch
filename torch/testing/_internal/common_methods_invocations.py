@@ -9694,8 +9694,6 @@ op_db: List[OpInfo] = [
            dtypes=all_types_and_complex_and(torch.bfloat16),
            dtypesIfCUDA=floating_and_complex_types_and(torch.float16,
                                                        *[torch.bfloat16] if (CUDA11OrLater or TEST_WITH_ROCM) else []),
-           backward_dtypesIfCUDA=floating_and_complex_types_and(torch.float16,
-                                                                *[torch.bfloat16] if (SM53OrLater or TEST_WITH_ROCM) else []),
            supports_forward_ad=True,
            supports_fwgrad_bwgrad=True,
            decorators=[
@@ -11781,12 +11779,9 @@ op_db: List[OpInfo] = [
     OpInfo('matmul',
            aliases=('linalg.matmul',),
            dtypes=all_types_and_complex_and(torch.bfloat16),
+           # dtype test succeeds if it succeeds for one input. As such, these should be the union of the dtypes from dot,mv,mm,bmm
            dtypesIfCUDA=floating_and_complex_types_and(torch.float16,
-                                                       *[torch.bfloat16] if ((SM53OrLater and CUDA11OrLater)
-                                                                             or TEST_WITH_ROCM) else []),
-           backward_dtypesIfCUDA=floating_and_complex_types_and(torch.float16,
-                                                                *[torch.bfloat16] if ((SM60OrLater and CUDA11OrLater)
-                                                                                      or TEST_WITH_ROCM) else []),
+                                                       *[torch.bfloat16] if (CUDA11OrLater or TEST_WITH_ROCM) else []),
            assert_autodiffed=True,
            assert_jit_shape_analysis=True,
            supports_forward_ad=True,
@@ -11797,10 +11792,13 @@ op_db: List[OpInfo] = [
                # ROCm intermittently fails the test with standard atol/rtol
                DecorateInfo(toleranceOverride({torch.float32: tol(atol=1e-4, rtol=0)}),
                             'TestCommon', 'test_noncontiguous_samples',
-                            active_if=TEST_WITH_ROCM), ],
+                            active_if=TEST_WITH_ROCM),
+               # mv for the sample with shapes (S, S, M, M), (M,) has some variance in the
+               # backward on CPU
+               DecorateInfo(toleranceOverride({torch.float32: tol(atol=0, rtol=1e-5)}),
+                            'TestCommon', 'test_noncontiguous_samples',
+                            device_type='cpu'), ],
            skips=(
-               # Strides are not the same!
-               DecorateInfo(unittest.expectedFailure, 'TestCommon', 'test_out'),
                # https://github.com/pytorch/pytorch/issues/67470
                DecorateInfo(unittest.skip("67470!"),
                             'TestCommon', 'test_noncontiguous_samples',
@@ -13105,8 +13103,6 @@ op_db: List[OpInfo] = [
                DecorateInfo(unittest.expectedFailure, 'TestCompositeCompliance', 'test_operator'),
                DecorateInfo(unittest.expectedFailure, 'TestCompositeCompliance', 'test_backward'),
                DecorateInfo(unittest.expectedFailure, 'TestCompositeCompliance', 'test_forward_ad'),
-               # Strides are not the same!
-               DecorateInfo(unittest.expectedFailure, 'TestCommon', 'test_out'),
            ),
            decorators=(
                DecorateInfo(toleranceOverride({torch.float16: tol(atol=1e-02, rtol=1e-02)}),
@@ -14256,13 +14252,9 @@ op_db: List[OpInfo] = [
     OpInfo('__rmatmul__',
            op=torch.Tensor.__rmatmul__,
            dtypes=all_types_and_complex_and(torch.bfloat16),
-           dtypesIfCUDA=floating_types_and(torch.float16,
-                                           *[torch.bfloat16] if ((SM53OrLater and CUDA11OrLater)
-                                                                 or TEST_WITH_ROCM) else [],
-                                           torch.complex64, torch.complex128),
-           backward_dtypesIfCUDA=floating_types_and(torch.float16, *[torch.bfloat16]
-                                                    if ((SM60OrLater and CUDA11OrLater) or TEST_WITH_ROCM) else [],
-                                                    torch.complex64, torch.complex128),
+           # dtype test succeeds if it succeeds for one input. As such, these should be the union of the dtypes from dot,mv,mm,bmm
+           dtypesIfCUDA=floating_and_complex_types_and(torch.float16,
+                                                       *[torch.bfloat16] if (CUDA11OrLater or TEST_WITH_ROCM) else []),
            assert_autodiffed=True,
            sample_inputs_func=sample_inputs_matmul,
            supports_out=False,
